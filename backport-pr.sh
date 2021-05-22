@@ -8,12 +8,13 @@ read -r -d "" USAGE <<EOF
 Given changes in a local branch of a fork and a list of releases to patch, open
 PRs with the changes targeting the release branches of each respective release.
 
-Usage: ${0##*/} [-hl] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [branch]
+Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [branch]
   -r RELEASES File containing list of releases to patch
   -b BODY     File containing PR body
   -t TITLE    PR title
   -p FORK     Preview PR creation in FORK
   -l          Only do local work
+  -c          Continue: open PRs for existing branches
   -h          Show usage
 
 Example:
@@ -25,13 +26,14 @@ if [ "$1" = "--help" ]; then
   echo "$USAGE" && exit 0
 fi
 
-while getopts r:b:t:p:lh opt; do
+while getopts r:b:t:p:lch opt; do
   case $opt in
     r) RELEASE_FILE=$OPTARG                ;;
     b) BODY_FILE=$OPTARG                   ;;
     t) PR_TITLE=$OPTARG                    ;;
     p) FORK=$OPTARG                        ;;
     l) LOCAL_ONLY=true                     ;;
+    c) CONTINUE=true                       ;;
     h) echo "$USAGE" && exit 0             ;;
     *) echo "$ERROR" && exit 1             ;;
   esac
@@ -97,15 +99,53 @@ handle_release() {
   local patch_branch=${BRANCH}-$release-patch
   local title="${PR_TITLE} ($release patch)"
 
-  echo
-  _echo "Attempting to patch $release ..."
-  git checkout "$BRANCH"
-  git checkout -b "${patch_branch}"
+  # Operations
+
+  git_push() {
+    if ! git push -u; then
+      _echo "Could not push $patch_branch"
+      return 1
+    fi
+  }
 
   git_rebase() {
     git rebase --onto "upstream/$release" "$BASE_BRANCH" "${patch_branch}" "$@"
   }
   
+  gh_pr_create() {
+    if [ -n "$FORK" ]; then
+       gh pr create --base "$release" --body "This is a preview" --title "$title" --draft --repo "$FORK"
+    elif ! gh pr create --base "$release" --body-file "$BODY_FILE" --title "$title" --draft; then
+      _echo "Failed to open PR for $release"
+      return 1
+    fi
+  }
+
+  publish_changes() {
+    if [ "$LOCAL_ONLY" = "true" ]; then
+      return
+    fi
+
+    _echo "Rebase complete. Take a look at the diff before pushing."
+    prompt_return "Press Enter to push branch and open PR"
+    git_push
+    gh_pr_create
+  }
+
+  echo
+  _echo "Attempting to patch $release ..."
+  git checkout "$BRANCH"
+  if ! git checkout -b "${patch_branch}"; then
+    _echo "Assuming work on $release is already done"
+    if [ "$CONTINUE" != "true" ]; then
+      _echo "Skipping"
+      return
+    fi
+    git checkout "${patch_branch}" || return 1
+    publish_changes
+    return
+  fi
+
   if ! git_rebase; then
     _echo "Conflicts during rebase. How to proceed?"
     _echo "1) Retry using -X theirs"
@@ -118,11 +158,21 @@ handle_release() {
     case $choice in
       1)
         git rebase --abort
-        git_rebase -X theirs
+        if ! git_rebase -X theirs; then
+          _echo "Still failing, fix manually"
+          prompt_return "Press ENTER to continue"
+        fi
         ;;
       2)
         git rebase --abort
-        git_rebase -X ours
+        if ! git_rebase -X ours; then
+          _echo "Attempting to fix by removing missing files..."
+          git status --porcelain | grep '^DU' | cut -d " " -f2 | xargs git rm
+          if ! GIT_EDITOR=true git rebase --continue; then
+            _echo "Still failing, fix manually"
+            prompt_return "Press ENTER to continue"
+          fi
+        fi
         ;;
       3)
         _echo "Resolve conflicts and run 'git rebase --continue'"
@@ -140,26 +190,9 @@ handle_release() {
         ;;
     esac
   fi
+  
+  publish_changes
 
-  if [ "$LOCAL_ONLY" = "true" ]; then
-    return
-  fi
-
-  _echo "Rebase complete. Take a look at the diff before pushing."
-
-  prompt_return "Press Enter to push branch and open PR"
-
-  if ! git push -u; then
-    _echo "Could not push $patch_branch"
-    return 1
-  fi
-
-  if [ -n "$FORK" ]; then
-     gh pr create --base "$release" --body "This is a preview" --title "$title" --draft --repo "$FORK"
-  elif ! gh pr create --base "$release" --body-file "$BODY_FILE" --title "$title" --draft; then
-    _echo "Failed to open PR for $release"
-    return 1
-  fi
 }
 
 while read -r release; do
