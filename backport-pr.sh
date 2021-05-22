@@ -81,55 +81,81 @@ fi
 
 # Work
 
+_echo() {
+  echo ">> $*"
+}
+
 prompt_return() {
   local message="$1"
   read -rp "$message"
 }
 
 handle_release() {
-  local release=$1
+  local release=$1 choice
   local patch_branch=${BRANCH}-$release-patch
   local title="${PR_TITLE} ($release patch)"
 
   echo
-  echo "Attempting to patch $release ..."
+  _echo "Attempting to patch $release ..."
   git checkout "$BRANCH"
   git checkout -b "${patch_branch}"
-  if ! git rebase --onto "upstream/$release" "$BASE_BRANCH" "${patch_branch}" -X theirs; then
-    git rebase --abort
-    echo "Rebase failed for ${release}, skipping"
-    echo "Checkout the branch manually and read ${RELEASE_FILE}-${release}-instructions"
-    cat <<EOF > "${RELEASE_FILE}-${release}-instructions"
-git rebase --onto "upstream/$release" "$BASE_BRANCH" "${patch_branch}"
-# resolve conflicts
-git push -u
-gh pr create --base "$release" --body-file "$BODY_FILE" --title "$title" --draft
-EOF
-    return 1
+
+  git_rebase() {
+    git rebase --onto "upstream/$release" "$BASE_BRANCH" "${patch_branch}" "$@"
+  }
+  
+  if ! git_rebase; then
+    _echo "Conflicts during rebase. How to proceed?"
+    _echo "1) Retry using -X theirs"
+    _echo "2) Resolve manually"
+    _echo "3) Skip"
+
+    read -rp "Select an option: " choice
+
+    case $choice in
+      1)
+        git rebase --abort
+        git_rebase -X theirs
+        ;;
+      2)
+        _echo "Resolve conflicts and run 'git rebase --continue'"
+        prompt_return "Press ENTER to continue"
+        ;;
+      3)
+        _echo "Skipping"
+        git rebase --abort
+        return 1
+        ;;
+      *)
+        _echo "Invalid choice: $choice, skipping"
+        git rebase --abort
+        return 1
+        ;;
+    esac
   fi
 
-  echo "Rebase complete"
+  _echo "Rebase complete. Take a look at the diff before pushing."
 
   prompt_return "Press Enter to push branch and open PR"
 
   if ! git push -u; then
-    echo "Could not push $patch_branch"
+    _echo "Could not push $patch_branch"
     return 1
   fi
 
   if [ -n "$FORK" ]; then
      gh pr create --base "$release" --body "This is a preview" --title "$title" --draft --repo "$FORK"
   elif ! gh pr create --base "$release" --body-file "$BODY_FILE" --title "$title" --draft; then
-    echo "Failed to open PR for $release"
+    _echo "Failed to open PR for $release"
     return 1
   fi
 }
 
 while read -r release; do
   if handle_release "$release"; then
-    echo "${release}: SUCCESS"
+    _echo "${release}: SUCCESS"
   else
-    echo "${release}: ERROR"
+    _echo "${release}: ERROR"
   fi
 done < "$RELEASE_FILE"
 
