@@ -8,11 +8,12 @@ read -r -d "" USAGE <<EOF
 Given changes in a local branch of a fork and a list of releases to patch, open
 PRs with the changes targeting the release branches of each respective release.
 
-Usage: ${0##*/} [-h] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [branch]
+Usage: ${0##*/} [-hl] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [branch]
   -r RELEASES File containing list of releases to patch
   -b BODY     File containing PR body
   -t TITLE    PR title
   -p FORK     Preview PR creation in FORK
+  -l          Only do local work
   -h          Show usage
 
 Example:
@@ -24,12 +25,13 @@ if [ "$1" = "--help" ]; then
   echo "$USAGE" && exit 0
 fi
 
-while getopts r:b:t:p:h opt; do
+while getopts r:b:t:p:lh opt; do
   case $opt in
     r) RELEASE_FILE=$OPTARG                ;;
     b) BODY_FILE=$OPTARG                   ;;
     t) PR_TITLE=$OPTARG                    ;;
     p) FORK=$OPTARG                        ;;
+    l) LOCAL_ONLY=true                     ;;
     h) echo "$USAGE" && exit 0             ;;
     *) echo "$ERROR" && exit 1             ;;
   esac
@@ -87,7 +89,7 @@ _echo() {
 
 prompt_return() {
   local message="$1"
-  read -rp "$message"
+  read -rp "$message" </dev/tty
 }
 
 handle_release() {
@@ -110,7 +112,7 @@ handle_release() {
     _echo "2) Resolve manually"
     _echo "3) Skip"
 
-    read -rp "Select an option: " choice
+    read -rp "Select an option: " choice </dev/tty
 
     case $choice in
       1)
@@ -132,6 +134,10 @@ handle_release() {
         return 1
         ;;
     esac
+  fi
+
+  if [ "$LOCAL_ONLY" = "true" ]; then
+    return
   fi
 
   _echo "Rebase complete. Take a look at the diff before pushing."
