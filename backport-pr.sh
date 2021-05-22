@@ -109,8 +109,9 @@ handle_release() {
   if ! git_rebase; then
     _echo "Conflicts during rebase. How to proceed?"
     _echo "1) Retry using -X theirs"
-    _echo "2) Resolve manually"
-    _echo "3) Skip"
+    _echo "2) Retry using -X ours"
+    _echo "3) Resolve manually"
+    _echo "4) Skip"
 
     read -rp "Select an option: " choice </dev/tty
 
@@ -120,10 +121,14 @@ handle_release() {
         git_rebase -X theirs
         ;;
       2)
+        git rebase --abort
+        git_rebase -X ours
+        ;;
+      3)
         _echo "Resolve conflicts and run 'git rebase --continue'"
         prompt_return "Press ENTER to continue"
         ;;
-      3)
+      4)
         _echo "Skipping"
         git rebase --abort
         return 1
