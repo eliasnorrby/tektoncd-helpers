@@ -122,12 +122,18 @@ handle_release() {
   }
 
   publish_changes() {
+    local action
     if [ "$LOCAL_ONLY" = "true" ]; then
       return
     fi
 
     _echo "Rebase complete. Take a look at the diff before pushing."
-    prompt_return "Press Enter to push branch and open PR"
+    
+    read -rp "Press Enter to push branch and open PR or type 'skip' to skip: " action </dev/tty
+    
+    if [ "$action" = "skip" ]; then 
+      return
+    fi
     git_push
     gh_pr_create
   }
