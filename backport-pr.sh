@@ -203,6 +203,7 @@ while read -r release; do
   fi
 done < "$RELEASE_FILE"
 
+git checkout "$BRANCH"
 exit
 
 # Plan
