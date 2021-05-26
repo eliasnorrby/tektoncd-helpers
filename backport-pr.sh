@@ -8,11 +8,12 @@ read -r -d "" USAGE <<EOF
 Given changes in a local branch of a fork and a list of releases to patch, open
 PRs with the changes targeting the release branches of each respective release.
 
-Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [branch]
+Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branch]
   -r RELEASES File containing list of releases to patch
   -b BODY     File containing PR body
   -t TITLE    PR title
   -p FORK     Preview PR creation in FORK
+  -B BASE     Rebase base (default: $BASE_BRANCH)
   -l          Only do local work
   -c          Continue: open PRs for existing branches
   -h          Show usage
@@ -26,12 +27,13 @@ if [ "$1" = "--help" ]; then
   echo "$USAGE" && exit 0
 fi
 
-while getopts r:b:t:p:lch opt; do
+while getopts r:b:t:p:B:lch opt; do
   case $opt in
     r) RELEASE_FILE=$OPTARG                ;;
     b) BODY_FILE=$OPTARG                   ;;
     t) PR_TITLE=$OPTARG                    ;;
     p) FORK=$OPTARG                        ;;
+    B) BASE=$OPTARG                        ;;
     l) LOCAL_ONLY=true                     ;;
     c) CONTINUE=true                       ;;
     h) echo "$USAGE" && exit 0             ;;
@@ -109,7 +111,7 @@ handle_release() {
   }
 
   git_rebase() {
-    git rebase --onto "upstream/$release" "$BASE_BRANCH" "${patch_branch}" "$@"
+    git rebase --onto "upstream/$release" "${BASE:-$BASE_BRANCH}" "${patch_branch}" "$@"
   }
   
   gh_pr_create() {
