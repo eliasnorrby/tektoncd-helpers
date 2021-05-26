@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+# After merging a PR to main, this script can be used to backport the changes
+# to a number of previous releases by opening PRs targeting their respective
+# release branches.
+# 
+# Strategy:
+# for each release
+# - checkout branch containing wanted changes
+# - create new branch with suffix
+# - rebase onto upstream/release-branch
+#   - if rebase fails, offer options for resolving conflicts
+# - push to origin
+# - open PR with body and titlek
+
 BASE_BRANCH=main
 
 ERROR="Bad usage, see ${0##*/} -h"
@@ -18,8 +31,15 @@ Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branc
   -c          Continue: open PRs for existing branches
   -h          Show usage
 
+If not branch is giving, the currently checked out branch is used.
+
 Example:
-  ${0##*/} -r releases -b body update-doc-titles
+  ${0##*/} -r releases -b body -t "Fix stuff" update-doc-titles
+  # Don't push or open PRs:
+  ${0##*/} -r releases -b body -t "Fix stuff" -l
+  # On finding existing branches, open PRs using them instead of failing:
+  ${0##*/} -r releases -b body -t "Fix stuff" -c
+  # Useful after running locally with -l.
 
 EOF
 
@@ -84,8 +104,6 @@ if [ ! -f ".git/refs/heads/$BRANCH" ]; then
   echo "$BRANCH is not available locally"
   exit 1
 fi
-
-# Work
 
 _echo() {
   echo ">> $*"
@@ -213,13 +231,3 @@ done < "$RELEASE_FILE"
 
 git checkout "$BRANCH"
 exit
-
-# Plan
-# for each release
-# - checkout local branch
-# - create new branch with suffix
-# - rebase onto upstream/release-branch
-# - push to origin
-# - open PR with body
-
-
