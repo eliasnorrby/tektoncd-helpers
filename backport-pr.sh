@@ -21,7 +21,7 @@ read -r -d "" USAGE <<EOF
 Given changes in a local branch of a fork and a list of releases to patch, open
 PRs with the changes targeting the release branches of each respective release.
 
-Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branch]
+Usage: ${0##*/} [-hlco] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branch]
   -r RELEASES File containing list of releases to patch
   -b BODY     File containing PR body
   -t TITLE    PR title
@@ -29,6 +29,7 @@ Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branc
   -B BASE     Rebase base (default: $BASE_BRANCH)
   -l          Only do local work
   -c          Continue: open PRs for existing branches
+  -o          Overwrite: delete existing branches
   -h          Show usage
 
 If no branch is given, the currently checked out branch is used.
@@ -47,7 +48,7 @@ if [ "$1" = "--help" ]; then
   echo "$USAGE" && exit 0
 fi
 
-while getopts r:b:t:p:B:lch opt; do
+while getopts r:b:t:p:B:lcoh opt; do
   case $opt in
     r) RELEASE_FILE=$OPTARG                ;;
     b) BODY_FILE=$OPTARG                   ;;
@@ -56,6 +57,7 @@ while getopts r:b:t:p:B:lch opt; do
     B) BASE=$OPTARG                        ;;
     l) LOCAL_ONLY=true                     ;;
     c) CONTINUE=true                       ;;
+    o) OVERWRITE=true                      ;;
     h) echo "$USAGE" && exit 0             ;;
     *) echo "$ERROR" && exit 1             ;;
   esac
@@ -161,6 +163,10 @@ handle_release() {
   echo
   _echo "Attempting to patch $release ..."
   git checkout "$BRANCH"
+  if [ "$OVERWRITE" = "true" ]; then
+    _echo "Deleting ${patch_branch}"
+    git branch -D "${patch_branch}" >/dev/null 2>&1
+  fi
   if ! git checkout -b "${patch_branch}"; then
     _echo "Assuming work on $release is already done"
     if [ "$CONTINUE" != "true" ]; then
