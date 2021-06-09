@@ -3,7 +3,7 @@
 # After merging a PR to main, this script can be used to backport the changes
 # to a number of previous releases by opening PRs targeting their respective
 # release branches.
-# 
+#
 # Strategy:
 # for each release
 # - checkout branch containing wanted changes
@@ -11,7 +11,7 @@
 # - rebase onto upstream/release-branch
 #   - if rebase fails, offer options for resolving conflicts
 # - push to origin
-# - open PR with body and titlek
+# - open PR with body and title
 
 BASE_BRANCH=main
 
@@ -31,7 +31,7 @@ Usage: ${0##*/} [-hlc] <-r FILE> <-b FILE> <-t TITLE> [-p FORK] [-B BASE] [branc
   -c          Continue: open PRs for existing branches
   -h          Show usage
 
-If not branch is giving, the currently checked out branch is used.
+If no branch is given, the currently checked out branch is used.
 
 Example:
   ${0##*/} -r releases -b body -t "Fix stuff" update-doc-titles
@@ -39,7 +39,7 @@ Example:
   ${0##*/} -r releases -b body -t "Fix stuff" -l
   # On finding existing branches, open PRs using them instead of failing:
   ${0##*/} -r releases -b body -t "Fix stuff" -c
-  # Useful after running locally with -l.
+  # Useful after running locally with -l
 
 EOF
 
@@ -148,10 +148,10 @@ handle_release() {
     fi
 
     _echo "Rebase complete. Take a look at the diff before pushing."
-    
+
     read -rp "Press Enter to push branch and open PR or type 'skip' to skip: " action </dev/tty
-    
-    if [ "$action" = "skip" ]; then 
+
+    if [ "$action" = "skip" ]; then
       return
     fi
     git_push
@@ -216,7 +216,7 @@ handle_release() {
         ;;
     esac
   fi
-  
+
   publish_changes
 
 }
